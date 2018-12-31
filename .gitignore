@@ -4,3 +4,7 @@ a.out*
 *.o
 *.pro
 Makefile
+*.swp
+moc_canvas.cpp
+moc_window.cpp
+moc_predefs.h

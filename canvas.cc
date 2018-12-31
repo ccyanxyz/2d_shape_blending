@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 #include <QWidget>
 #include <QTimer>
 #include <QPainter>
@@ -26,8 +27,9 @@ void Canvas::clear()
 			sim[i][j] = 0;
 		}
 	}
-	min_dist = 100;
-	path.clear();
+	min_dist = 10000;
+	mapping.clear();
+	show_mapping = false;
 }
 
 void Canvas::draw_done()
@@ -78,6 +80,15 @@ void Canvas::paintEvent(QPaintEvent *)
 
 		if(i != poly2.size() - 1) {
 			p.drawLine(poly2[i].x, poly2[i].y, poly2[i + 1].x, poly2[i + 1].y);
+		}
+	}
+
+	// show points mapping
+	if(show_mapping && mapping.size() == poly1.size()) {
+		p.setPen(QColor(Qt::green));
+		for(size_t i = 0; i < mapping.size(); ++i) {
+			p.drawLine(poly1[mapping[i].first].x, poly1[mapping[i].first].y,\
+					poly2[mapping[i].second].x, poly2[mapping[i].second].y);
 		}
 	}
 }
@@ -158,72 +169,122 @@ void Canvas::calc_poly_sim()
 	}
 
 	cout << "sim:" << endl;
-	print_mat(sim, poly2.size() + 1, poly1.size() + 1);
+	print_mat(sim, poly2.size(), poly1.size());
 }
 
 void Canvas::calc_points_map()
 {
-	// cograph of similarity matrix
-	double co_sim[100][100];
-	for(size_t i = 0; i < poly2.size() + 1; ++i) {
-		for(size_t j = 0; j < poly1.size() + 1; ++j) {
-			co_sim[i][j] = 1 - sim[i][j];
+	mapping.clear();
+	for(size_t i = 0; i < poly2.size(); ++i) {
+		// construct cograph of similarity matrix
+		double co_sim_i[100][100];
+		for(size_t m = 0; m < poly2.size(); ++m) {
+			for(size_t n = 0; n < poly1.size(); ++n) {
+				co_sim_i[m][n] = 1 - sim[(m + i) % poly2.size()][n];
+			}
+		}
+		for(size_t i = 0; i < poly1.size(); ++i) {
+			co_sim_i[poly2.size()][i] = co_sim_i[0][i];
+		}
+		for(size_t i = 0; i < poly2.size(); ++i) {
+			co_sim_i[i][poly1.size()] = co_sim_i[i][0];
+		}
+		co_sim_i[poly2.size()][poly1.size()] = co_sim_i[0][0];
+
+		//cout << "co_sim:" << endl;
+		//print_mat(co_sim_i, poly2.size() + 1, poly1.size() + 1);
+
+		// calculate shortest path
+		vector< pair<int, int> > path;
+		double dist = calc_shortest_path(co_sim_i, poly2.size() + 1,\
+				poly1.size() + 1, path);
+		
+		// if dist < min_dist, update mapping
+		if(dist < min_dist) {
+			mapping.clear();
+			for(size_t j = 0; j < path.size(); ++j) {
+				pair<int, int> p;
+				p.first = path[j].second;
+				p.second = (poly2.size() + path[j].first - i) % poly2.size();
+				mapping.push_back(p);
+			}
+			min_dist = dist;
 		}
 	}
-
-	cout << "sim:" << endl;
-	print_mat(sim, poly2.size() + 1, poly1.size() + 1);
-
-	cout << "co_graph:" << endl;
-	print_mat(co_sim, poly2.size() + 1, poly1.size() + 1);
-	// calculate shortest path of co_sim
-	calc_shortest_path(co_sim, poly2.size() + 1, poly1.size() + 1);	
 }
 
-double Canvas::calc_shortest_path(double mat[100][100], int m, int n)
+double Canvas::calc_shortest_path(double mat[100][100], int m, int n,\
+		vector< pair<int, int> > &path)
 {
+	// calculate shortest path
 	double dp[100][100];
 	dp[0][0] = mat[0][0];
+
+	pair<int, int> prev[100][100];
+	
 	for(int i = 1; i < m; ++i) {
 		dp[i][0] = 100;
+		prev[i][0] = make_pair(0, 0);
+	}
+
+	for(int i = 1; i < n; ++i) {
 		dp[0][i] = dp[0][i - 1] + mat[0][i];
+		prev[0][i] = make_pair(0, i - 1);
 	}
 
 	for(int i = 1; i < m; ++i) {
-		for(int j = 1; j < m; ++j){
+		for(int j = 1; j < n; ++j) {
 			dp[i][j] = 100;
 		}
 	}
 
-	vector< pair<int, int> > path1;
-
 	for(int i = 1; i < m; ++i) {
 		for(int j = 1; j < n; ++j) {
 			int x = 0, y = 0;
-			if(mat[i - 1][j - 1] <= mat[i - 1][j]) {
+			if(dp[i - 1][j - 1] <= dp[i][j - 1]) {
 				x = i - 1;
 				y = j - 1;
-			} else if(mat[i - 1][j] <= mat[i - 1][j - 1]) {
-				x = i - 1;
-				y = j;
+			} else {
+				x = i;
+				y = j - 1;
 			}
-
-			if(mat[x][y] + mat[i][j] < dp[i][j]) {
-				dp[i][j] = mat[x][y] + mat[i][j];
-				path1.push_back(make_pair(x, y));
-			}
+			dp[i][j] = dp[x][y] + mat[i][j];
+			prev[i][j] = make_pair(x, y);
 		}
 	}
 
+	/*
 	cout << "dp:" << endl;
 	print_mat(dp, m, n);
 
-	cout << "path:" << endl;
-	for(size_t i = 0; i < path1.size(); ++i) {
-		cout << path1[i].first << ", " << path1[i].second << endl;
+	cout << "prev:" << endl;
+	for(int i = 0; i < m; ++i) {
+		for(int j = 0; j < n; ++j) {
+			cout << "(" << prev[i][j].first << ", " << prev[i][j].second << ") ";
+		}
+		cout << endl;
 	}
+	cout << endl;
+	*/
 
-	return dp[m][n];
+	// get path
+	path.clear();
+	pair<int, int> p = prev[m - 1][n - 1];
+	while(p.first != 0 && p.second != 0) {
+		path.push_back(p);
+		p = prev[p.first][p.second];
+	}
+	path.push_back(make_pair(0, 0));
+	
+	reverse(path.begin(), path.end());
+
+	for(size_t i = 0; i < path.size(); ++i) {
+		cout << "(" << path[i].first << ", " << path[i].second << ") ";
+	}
+	cout << dp[m-1][n-1];
+	cout << endl;
+
+	return dp[m - 1][n - 1];
 }
 
 void Canvas::print_mat(double mat[100][100], int m, int n)
@@ -234,4 +295,21 @@ void Canvas::print_mat(double mat[100][100], int m, int n)
 		}
 		cout << endl;
 	}
+}
+
+void Canvas::show_map()
+{
+	if(show_mapping == true) {
+		show_mapping = false;
+	} else if(show_mapping == false){
+		calc_poly_sim();
+		calc_points_map();
+		show_mapping = true;
+	}
+	cout << "===== mapping =====" << endl;
+	for(size_t i = 0; i < mapping.size(); ++i) {
+		cout << mapping[i].first << "->" << mapping[i].second << endl;
+	}
+	cout << "===================" << endl;
+	update();
 }

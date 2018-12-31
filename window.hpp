@@ -27,6 +27,7 @@ class Window: public QWidget
 		QPushButton *clear_button;
 		QPushButton *play_button;
 		QPushButton *draw_done;
+		QPushButton *show_mapping;
 
 	public:
 		Window(QWidget *parent = 0): QWidget(parent)
@@ -40,15 +41,19 @@ class Window: public QWidget
 			clear_button->setText("Clear");
 			play_button = new QPushButton(this);
 			play_button->setText("Play");
+			show_mapping = new QPushButton(this);
+			show_mapping->setText("Show mapping");
 
 			connect(draw_done, SIGNAL(clicked()), this, SLOT(draw_end()));
 			connect(clear_button, SIGNAL(clicked()), this, SLOT(clear_canvas()));
 			connect(play_button, SIGNAL(clicked()), this, SLOT(play()));
+			connect(show_mapping, SIGNAL(clicked()), this, SLOT(show_map()));
 
 			layout = new QVBoxLayout();
 			hlayout = new QHBoxLayout();
 			layout->addWidget(draw_done);
 			layout->addWidget(clear_button);
+			layout->addWidget(show_mapping);
 			layout->addWidget(play_button);
 			
 			win->setFixedWidth(204);
@@ -77,5 +82,11 @@ class Window: public QWidget
 		void play()
 		{
 			canvas->play();
+		}
+		
+		// show points mapping
+		void show_map()
+		{
+			canvas->show_map();
 		}
 };

@@ -23,10 +23,11 @@ class Canvas: public QWidget
 		int num;
 		// similarity matrix
 		double sim[100][100];
-		// shortest path dist
+		// shortest path length
 		double min_dist;
-		// shortest path
-		vector< pair<int, int> > path;
+		// shortest path points mapping
+		vector< pair<int, int> > mapping;
+		bool show_mapping;
 
 	public:
 		// contrustor
@@ -40,8 +41,9 @@ class Canvas: public QWidget
 					sim[i][j] = 0;
 				}
 			}
-			min_dist = 0;
-			path.clear();
+			min_dist = 10000;
+			mapping.clear();
+			show_mapping = false;
 		}
 
 		void clear();
@@ -49,6 +51,8 @@ class Canvas: public QWidget
 		void draw_done();
 
 		void play();
+
+		void show_map();
 
 		// calculate edge length
 		double calc_edge_len(Point &a, Point &b);
@@ -60,8 +64,9 @@ class Canvas: public QWidget
 		void calc_poly_sim();
 		// calculate mapping
 		void calc_points_map();
-		// calculate shortest path for matrix
-		double calc_shortest_path(double mat[100][100], int m, int n);
+		// calculate shortest path
+		double calc_shortest_path(double mat[100][100], int m, int n,\
+				vector< pair<int, int> > &path);
 		// print matrix
 		void print_mat(double mat[100][100], int m, int n);
 
