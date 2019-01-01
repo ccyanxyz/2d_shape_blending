@@ -1,4 +1,6 @@
 #include <QWidget>
+#include <map>
+#include <Eigen/Dense>
 
 using namespace std;
 class Point {
@@ -26,8 +28,14 @@ class Canvas: public QWidget
 		// shortest path length
 		double min_dist;
 		// shortest path points mapping
-		vector< pair<int, int> > mapping;
+		//vector< pair<int, int> > mapping;
+		map<int, int> mapping;
 		bool show_mapping;
+
+		// anchor points
+		vector<int> anchor_points;
+		// show anchor
+		bool show_anchor_points;
 
 	public:
 		// contrustor
@@ -44,6 +52,8 @@ class Canvas: public QWidget
 			min_dist = 10000;
 			mapping.clear();
 			show_mapping = false;
+			anchor_points.clear();
+			show_anchor_points = false;
 		}
 
 		void clear();
@@ -69,6 +79,32 @@ class Canvas: public QWidget
 				vector< pair<int, int> > &path);
 		// print matrix
 		void print_mat(double mat[100][100], int m, int n);
+
+		// calculate smooth of angle pair (i, mapping[i])
+		double calc_angle_smooth(int i);
+
+		// calculate smooth of 3 paired angles
+		double calc_smooth(int a, int b, int c);
+		// calculate polygon area
+		double calc_area(vector<Point> &poly);
+
+		// get 3 pair of angles with biggest smooth value
+		// then calculate matrix A, B, C
+		void calc_best_affine_trans(Eigen::Matrix2d &, Eigen::Matrix2d &,
+				Eigen::Matrix2d &, Eigen::Vector2d &);
+
+		// calculate affine transform matrix
+		void calc_affine_mat(vector<Point> &, vector<Point> &, Eigen::Matrix2d &,\
+				Eigen::Vector2d &);
+
+		// decompose affine transform matrix
+		void decompose_affine_mat(Eigen::Matrix2d &, Eigen::Matrix2d &,\
+				Eigen::Matrix2d &);
+
+		// show anchor points
+		void show_anchor();
+		// interpolation
+		void interpolation();
 
 	protected:
 		void paintEvent(QPaintEvent *);

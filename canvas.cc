@@ -1,5 +1,7 @@
 #include <iostream>
+#include <map>
 #include <algorithm>
+#include <Eigen/Dense>
 #include <QWidget>
 #include <QTimer>
 #include <QPainter>
@@ -30,12 +32,19 @@ void Canvas::clear()
 	min_dist = 10000;
 	mapping.clear();
 	show_mapping = false;
+	anchor_points.clear();
+	show_anchor_points = false;
 }
 
 void Canvas::draw_done()
 {
 	if(num <= 1) {
 		num += 1;
+		if(num == 2) {
+			calc_poly_sim();
+			calc_points_map();
+			cout << mapping.size() << ", " << poly1.size() << endl;
+		}
 		update();
 	}
 }
@@ -86,9 +95,22 @@ void Canvas::paintEvent(QPaintEvent *)
 	// show points mapping
 	if(show_mapping && mapping.size() == poly1.size()) {
 		p.setPen(QColor(Qt::green));
-		for(size_t i = 0; i < mapping.size(); ++i) {
-			p.drawLine(poly1[mapping[i].first].x, poly1[mapping[i].first].y,\
-					poly2[mapping[i].second].x, poly2[mapping[i].second].y);
+		for(auto it = mapping.begin(); it != mapping.end(); ++it) {
+			//p.drawLine(poly1[mapping[i].first].x, poly1[mapping[i].first].y,\
+					//poly2[mapping[i].second].x, poly2[mapping[i].second].y);
+			p.drawLine(poly1[it->first].x, poly1[it->first].y,\
+					poly2[it->second].x, poly2[it->second].y);
+		}
+	}
+
+	// show anchor points
+	if(show_anchor_points && anchor_points.size() == 3) {
+		p.setPen(QColor(Qt::blue));
+		for(auto i : anchor_points) {
+			p.drawEllipse(poly1[i].x, poly1[i].y, 5, 5);
+			p.drawEllipse(poly2[mapping[i]].x, poly2[mapping[i]].y, 5, 5);
+			p.drawLine(poly1[i].x, poly1[i].y, poly2[mapping[i]].x,\
+					poly2[mapping[i]].y);
 		}
 	}
 }
@@ -206,7 +228,8 @@ void Canvas::calc_points_map()
 				pair<int, int> p;
 				p.first = path[j].second;
 				p.second = (poly2.size() + path[j].first - i) % poly2.size();
-				mapping.push_back(p);
+				//mapping.push_back(p);
+				mapping[p.first] = p.second;
 			}
 			min_dist = dist;
 		}
@@ -270,7 +293,7 @@ double Canvas::calc_shortest_path(double mat[100][100], int m, int n,\
 	// get path
 	path.clear();
 	pair<int, int> p = prev[m - 1][n - 1];
-	while(p.first != 0 && p.second != 0) {
+	while(!(p.first == 0 && p.second == 0)) {
 		path.push_back(p);
 		p = prev[p.first][p.second];
 	}
@@ -278,12 +301,13 @@ double Canvas::calc_shortest_path(double mat[100][100], int m, int n,\
 	
 	reverse(path.begin(), path.end());
 
+	/*
 	for(size_t i = 0; i < path.size(); ++i) {
 		cout << "(" << path[i].first << ", " << path[i].second << ") ";
 	}
 	cout << dp[m-1][n-1];
 	cout << endl;
-
+	*/
 	return dp[m - 1][n - 1];
 }
 
@@ -302,14 +326,247 @@ void Canvas::show_map()
 	if(show_mapping == true) {
 		show_mapping = false;
 	} else if(show_mapping == false){
-		calc_poly_sim();
-		calc_points_map();
+		if(mapping.size() == 0) {
+			calc_poly_sim();
+			calc_points_map();
+		}
 		show_mapping = true;
 	}
 	cout << "===== mapping =====" << endl;
-	for(size_t i = 0; i < mapping.size(); ++i) {
-		cout << mapping[i].first << "->" << mapping[i].second << endl;
+	for(auto it = mapping.begin(); it != mapping.end(); ++it) {
+		cout << it->first << "->" << it->second << endl;
 	}
 	cout << "===================" << endl;
 	update();
+}
+
+double Canvas::calc_angle_smooth(int i)
+{
+	cout << "mapping:" << mapping.size() << ", poly1:" << poly1.size() << endl; 
+	assert(mapping.size() == poly1.size());
+	
+	int j = mapping[i];
+
+	vector<Point> angle1, angle2;
+	angle1.push_back(poly1[(poly1.size() + i - 1) % poly1.size()]);
+	angle1.push_back(poly1[i]);
+	angle1.push_back(poly1[(i + 1) % poly1.size()]);
+	
+	angle2.push_back(poly2[(poly2.size() + j - 1) % poly2.size()]);
+	angle2.push_back(poly2[j]);
+	angle2.push_back(poly2[(j + 1) % poly2.size()]);
+
+	// triangle1
+	double e11 = calc_edge_len(angle1[0], angle1[1]);
+	double e12 = calc_edge_len(angle1[1], angle1[2]);
+	double e13 = calc_edge_len(angle1[0], angle1[2]);
+
+	double a11 = calc_angle(e13, e11, e12);
+	double a12 = calc_angle(e11, e13, e12);
+	double a13 = calc_angle(e12, e13, e11);
+
+	// triangle2
+	double e21 = calc_edge_len(angle2[0], angle2[1]);
+	double e22 = calc_edge_len(angle2[1], angle2[2]);
+	double e23 = calc_edge_len(angle2[0], angle2[2]);
+
+	double a21 = calc_angle(e23, e21, e22);
+	double a22 = calc_angle(e21, e23, e22);
+	double a23 = calc_angle(e22, e23, e21);
+	
+
+	// smooth = a * S + b * (1 - R / 180) + c * A
+	double smooth = 0;
+	double a = 0.4, b = 0.3, c = 0.3;
+
+	// calculate S
+	double w1 = 0.5, w2 = 0.5;
+	double S = w1 * (1 - (abs(e11 - e21) + abs(e12 - e22) + \
+					abs(e13 - e23)) / (e11 + e21 + e12 + e22 + e13 + e23))\
+					+ w2 * (1 - (abs(a11 - a21) + abs(a12 - a22) + abs(a13 - a23)) / 180);
+	
+	// calculate R
+	Eigen::Matrix2d A;
+	Eigen::Vector2d T;
+	calc_affine_mat(angle1, angle2, A, T);
+	Eigen::Matrix2d B, C;
+	decompose_affine_mat(A, B, C);
+	cout << "B(0, 0) = " << B(0, 0) << endl;
+	double R = acos(B(0, 0)) * 180 / 3.14159262;
+
+	// calculate A
+	double angle_area1 = calc_area(angle1);
+	double angle_area2 = calc_area(angle2);
+	double poly_area1 = calc_area(poly1);
+	double poly_area2 = calc_area(poly2);
+	double _A = (angle_area1 + angle_area2) / (poly_area1 + poly_area2);
+
+	smooth = a * S + b * (1 - R / 180) + c * _A;
+
+	cout << "S:" << S << ", R:" << R << ", A" << _A << endl;
+
+	if(a11 > 180 || a21 > 180) {
+		smooth = 0;
+	}
+	return smooth;
+}
+
+double Canvas::calc_area(vector<Point> &poly)
+{
+	double area = 0;
+	for(size_t i = 0; i < poly.size() - 1; ++i) {
+		area += 0.5 * fabs(poly[i].x * poly[i + 1].y - poly[i + 1].x * poly[i].y);
+	}
+	return area;
+}
+
+double Canvas::calc_smooth(int a, int b, int c)
+{
+	return calc_angle_smooth(a) * calc_angle_smooth(b) * calc_angle_smooth(c);	
+}
+
+void Canvas::calc_best_affine_trans(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
+		Eigen::Matrix2d &C, Eigen::Vector2d &T)
+{
+	assert(mapping.size() == poly1.size());
+
+	vector<int> perm;
+	for(size_t i = 0; i < mapping.size() - 3; ++i){
+		perm.push_back(0);
+	}
+	perm.push_back(1);
+	perm.push_back(1);
+	perm.push_back(1);
+
+	double max_smooth = 0;
+	//vector<int> anchor_points;
+
+	bool flag = true;
+	while(flag) {
+		vector<int> points;
+		vector<int>::iterator it = perm.begin() - 1;
+		for(int i = 0; i < 3; ++i) {
+			it = ::find(it + 1, perm.end(), 1);
+			points.push_back(it - perm.begin());
+		}
+
+		flag = next_permutation(perm.begin(), perm.end());
+
+		cout << "points:";
+		for(auto i : points) {
+			cout << i << " ";
+		}
+		cout << endl;
+
+		// check if 2 points mapping to the same point in polygon2
+		if(mapping[points[0]] == mapping[points[1]] ||\
+				mapping[points[0]] == mapping[points[2]] ||\
+				mapping[points[1]] == mapping[points[2]]) {
+			continue;
+		}
+
+		double smooth = calc_smooth(points[0], points[1], points[2]);
+		cout << "smooth:" << smooth << endl;
+		if(smooth > max_smooth) {
+			anchor_points.clear();
+			anchor_points.assign(points.begin(), points.end());
+			for(auto i : anchor_points) {
+				cout << i << " ";
+			}
+			cout << endl;
+			max_smooth = smooth;
+		}
+	}
+	
+	// calculate affine matrix
+	vector<Point> angle1, angle2;
+	for(auto i : anchor_points) {
+		angle1.push_back(poly1[i]);
+		angle2.push_back(poly2[mapping[i]]);
+	}
+
+	cout << "angle1:" << endl;
+	for(auto i : angle1) {
+		cout << "(" << i.x << ", " << i.y << ") ";
+	}
+	cout << endl;
+	
+	cout << "angle2:" << endl;
+	for(auto i : angle2) {
+		cout << "(" << i.x << ", " << i.y << ") ";
+	}
+	cout << endl;
+
+	calc_affine_mat(angle1, angle2, A, T);
+	decompose_affine_mat(A, B, C);
+}
+
+void Canvas::calc_affine_mat(vector<Point> &angle1, vector<Point> &angle2,\
+		Eigen::Matrix2d &A, Eigen::Vector2d &T)
+{
+	Eigen::Matrix<double, 3, 3> before, after;
+
+	before << angle1[0].x, angle1[1].x, angle1[2].x,\
+			  angle1[0].y, angle1[1].y, angle1[2].y,\
+			  1,          1,          1;
+
+	after << angle2[0].x, angle2[1].x, angle2[2].x,\
+			 angle2[0].y, angle2[1].y, angle2[2].y,\
+			 1,          1,          1;
+	
+	// transform parameters matrix
+	Eigen::Matrix<double, 3, 3> paras;
+	paras = after * before.inverse();
+
+	// composite matrix
+	A << paras(0, 0), paras(1, 0),\
+		 paras(0, 1), paras(1, 1);
+	// translation matrix
+	T << paras(0, 2), paras(1, 2);
+}
+
+void Canvas::decompose_affine_mat(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
+		Eigen::Matrix2d &C)
+{
+	// B = A + sign(det(A)) * [a22, -a21
+	// 						   -a12, a11]
+	// C = B^-1 * A
+	
+	double det_A = A.determinant();
+	double sign_det_A = det_A > 0 ? 1 : -1;
+	if(det_A == 0) {
+		sign_det_A = 0;
+	}
+
+	Eigen::Matrix2d temp;
+	temp << A(1, 1), -A(1, 0),\
+			-A(0, 1), A(0, 0);
+
+	B = A + sign_det_A * temp;
+	C = B.inverse() * A;
+	double t = B(0, 0) * B(0, 0) + B(0, 1) + B(0, 1);
+	B /= t;
+	C *= t;
+}
+
+void Canvas::show_anchor()
+{
+	if(show_anchor_points == true) {
+		show_anchor_points = false;
+	} else {
+		Eigen::Matrix2d A, B, C;
+		Eigen::Vector2d T;
+		calc_best_affine_trans(A, B, C, T);
+		if(anchor_points.size() != 0) {
+			show_anchor_points = true;
+		}
+	}
+	update();
+}
+
+void Canvas::interpolation()
+{
+	Eigen::Matrix2d A, B, C;
+	Eigen::Vector2d T;
+	calc_best_affine_trans(A, B, C, T);
 }
