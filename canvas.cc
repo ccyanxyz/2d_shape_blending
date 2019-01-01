@@ -2,6 +2,8 @@
 #include <map>
 #include <algorithm>
 #include <Eigen/Dense>
+#include <chrono>
+#include <thread>
 #include <QWidget>
 #include <QTimer>
 #include <QPainter>
@@ -11,6 +13,7 @@
 #include <QDebug>
 #include <QMessageBox>
 #include <QLabel>
+#include <QPropertyAnimation>
 #include <iostream>
 #include <cmath>
 #include <cassert>
@@ -32,8 +35,12 @@ void Canvas::clear()
 	min_dist = 10000;
 	mapping.clear();
 	show_mapping = false;
+
 	anchor_points.clear();
 	show_anchor_points = false;
+
+	trans_frames.clear();
+	play_status = false;
 }
 
 void Canvas::draw_done()
@@ -43,7 +50,7 @@ void Canvas::draw_done()
 		if(num == 2) {
 			calc_poly_sim();
 			calc_points_map();
-			cout << mapping.size() << ", " << poly1.size() << endl;
+			//cout << mapping.size() << ", " << poly1.size() << endl;
 		}
 		update();
 	}
@@ -51,8 +58,14 @@ void Canvas::draw_done()
 
 void Canvas::play()
 {
-	calc_poly_sim();
-	calc_points_map();
+	if(play_status == false) {
+		trans_frames = interpolation();
+		play_status = true;
+	} else {
+		play_status = false;
+	}
+
+	update();
 }
 
 void Canvas::paintEvent(QPaintEvent *)
@@ -63,12 +76,12 @@ void Canvas::paintEvent(QPaintEvent *)
 	p.setPen(QColor(Qt::red));
 	p.setBrush(brush);
 	// paint control points
-	for(size_t i = 0; i < poly1.size(); ++i){
+	for(size_t i = 0; i < poly1.size() && play_status == false; ++i){
 		p.drawEllipse(poly1[i].x, poly1[i].y, 5, 5);
 	}
 
 	// paint line
-	for(size_t i = 0; i < poly1.size(); ++i){
+	for(size_t i = 0; i < poly1.size() && play_status == false; ++i){
 		if(i == poly1.size() - 1 && num >= 1) {
 			p.drawLine(poly1[i].x, poly1[i].y, poly1[0].x, poly1[0].y);
 		}
@@ -76,6 +89,7 @@ void Canvas::paintEvent(QPaintEvent *)
 		if(i != poly1.size() - 1) {
 			p.drawLine(poly1[i].x, poly1[i].y, poly1[i + 1].x, poly1[i + 1].y);
 		}
+		cout << "shit" << endl;
 	}
 
 	for(size_t i = 0; i < poly2.size(); ++i) {
@@ -93,18 +107,16 @@ void Canvas::paintEvent(QPaintEvent *)
 	}
 
 	// show points mapping
-	if(show_mapping && mapping.size() == poly1.size()) {
+	if(show_mapping && mapping.size() == poly1.size() && play_status == false) {
 		p.setPen(QColor(Qt::green));
 		for(auto it = mapping.begin(); it != mapping.end(); ++it) {
-			//p.drawLine(poly1[mapping[i].first].x, poly1[mapping[i].first].y,\
-					//poly2[mapping[i].second].x, poly2[mapping[i].second].y);
 			p.drawLine(poly1[it->first].x, poly1[it->first].y,\
 					poly2[it->second].x, poly2[it->second].y);
 		}
 	}
 
 	// show anchor points
-	if(show_anchor_points && anchor_points.size() == 3) {
+	if(show_anchor_points && anchor_points.size() == 3 && play_status == false) {
 		p.setPen(QColor(Qt::blue));
 		for(auto i : anchor_points) {
 			p.drawEllipse(poly1[i].x, poly1[i].y, 5, 5);
@@ -112,6 +124,25 @@ void Canvas::paintEvent(QPaintEvent *)
 			p.drawLine(poly1[i].x, poly1[i].y, poly2[mapping[i]].x,\
 					poly2[mapping[i]].y);
 		}
+	}
+
+	cout << "play_status:" << play_status << ", pos:" << pos << endl;
+	if(play_status && trans_frames.size() > 0) {
+		//for(auto frame : trans_frames) {
+		if(pos >= trans_frames.size()) {
+			play_status = false;
+			pos = 0;
+		} else {
+			vector<Point> frame = trans_frames[pos];
+			for(size_t i = 0; i < frame.size(); ++i) {
+				p.drawLine(frame[i].x, frame[i].y, frame[(i + 1) % frame.size()].x,\
+						frame[(i + 1) % frame.size()].y);
+			}
+			pos += 1;
+			this_thread::sleep_for(chrono::milliseconds(100));
+			update();
+		}
+		//}
 	}
 }
 
@@ -190,8 +221,8 @@ void Canvas::calc_poly_sim()
 		}
 	}
 
-	cout << "sim:" << endl;
-	print_mat(sim, poly2.size(), poly1.size());
+	//cout << "sim:" << endl;
+	//print_mat(sim, poly2.size(), poly1.size());
 }
 
 void Canvas::calc_points_map()
@@ -332,17 +363,19 @@ void Canvas::show_map()
 		}
 		show_mapping = true;
 	}
+	/*
 	cout << "===== mapping =====" << endl;
 	for(auto it = mapping.begin(); it != mapping.end(); ++it) {
 		cout << it->first << "->" << it->second << endl;
 	}
 	cout << "===================" << endl;
+	*/
 	update();
 }
 
 double Canvas::calc_angle_smooth(int i)
 {
-	cout << "mapping:" << mapping.size() << ", poly1:" << poly1.size() << endl; 
+	//cout << "mapping:" << mapping.size() << ", poly1:" << poly1.size() << endl; 
 	assert(mapping.size() == poly1.size());
 	
 	int j = mapping[i];
@@ -391,7 +424,6 @@ double Canvas::calc_angle_smooth(int i)
 	calc_affine_mat(angle1, angle2, A, T);
 	Eigen::Matrix2d B, C;
 	decompose_affine_mat(A, B, C);
-	cout << "B(0, 0) = " << B(0, 0) << endl;
 	double R = acos(B(0, 0)) * 180 / 3.14159262;
 
 	// calculate A
@@ -425,8 +457,7 @@ double Canvas::calc_smooth(int a, int b, int c)
 	return calc_angle_smooth(a) * calc_angle_smooth(b) * calc_angle_smooth(c);	
 }
 
-void Canvas::calc_best_affine_trans(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
-		Eigen::Matrix2d &C, Eigen::Vector2d &T)
+void Canvas::calc_best_affine_trans()
 {
 	assert(mapping.size() == poly1.size());
 
@@ -452,11 +483,13 @@ void Canvas::calc_best_affine_trans(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
 
 		flag = next_permutation(perm.begin(), perm.end());
 
+		/*
 		cout << "points:";
 		for(auto i : points) {
 			cout << i << " ";
 		}
 		cout << endl;
+		*/
 
 		// check if 2 points mapping to the same point in polygon2
 		if(mapping[points[0]] == mapping[points[1]] ||\
@@ -466,7 +499,6 @@ void Canvas::calc_best_affine_trans(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
 		}
 
 		double smooth = calc_smooth(points[0], points[1], points[2]);
-		cout << "smooth:" << smooth << endl;
 		if(smooth > max_smooth) {
 			anchor_points.clear();
 			anchor_points.assign(points.begin(), points.end());
@@ -485,6 +517,7 @@ void Canvas::calc_best_affine_trans(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
 		angle2.push_back(poly2[mapping[i]]);
 	}
 
+	/*
 	cout << "angle1:" << endl;
 	for(auto i : angle1) {
 		cout << "(" << i.x << ", " << i.y << ") ";
@@ -496,9 +529,7 @@ void Canvas::calc_best_affine_trans(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
 		cout << "(" << i.x << ", " << i.y << ") ";
 	}
 	cout << endl;
-
-	calc_affine_mat(angle1, angle2, A, T);
-	decompose_affine_mat(A, B, C);
+	*/
 }
 
 void Canvas::calc_affine_mat(vector<Point> &angle1, vector<Point> &angle2,\
@@ -554,9 +585,7 @@ void Canvas::show_anchor()
 	if(show_anchor_points == true) {
 		show_anchor_points = false;
 	} else {
-		Eigen::Matrix2d A, B, C;
-		Eigen::Vector2d T;
-		calc_best_affine_trans(A, B, C, T);
+		calc_best_affine_trans();
 		if(anchor_points.size() != 0) {
 			show_anchor_points = true;
 		}
@@ -564,9 +593,59 @@ void Canvas::show_anchor()
 	update();
 }
 
-void Canvas::interpolation()
+vector< vector<Point> > Canvas::interpolation()
 {
-	Eigen::Matrix2d A, B, C;
-	Eigen::Vector2d T;
-	calc_best_affine_trans(A, B, C, T);
+	assert(mapping.size() == poly1.size());
+
+	vector< vector<Point> > frames;
+	vector<Point> origin_local, dest_local;
+	vector<Point> origin_anchor, dest_anchor;
+	for(auto i : anchor_points) {
+		origin_anchor.push_back(poly1[i]);
+		dest_anchor.push_back(poly2[mapping[i]]);
+	}
+
+	for(auto i : mapping) {
+		origin_local.push_back(calc_local_coords(origin_anchor, poly1[i.first]));
+		dest_local.push_back(calc_local_coords(dest_anchor, poly2[i.second]));
+	}
+
+	for(double t = 0; t <= 1; t += 0.05) {
+		vector<Point> frame;
+		for(size_t i = 0; i < origin_local.size(); ++i) {
+			Point p;
+			double x = (1 - t) * origin_local[i].x + t * dest_local[i].x;
+			double y = (1 - t) * origin_local[i].y + t * dest_local[i].y;
+			p.x = origin_anchor[1].x + x * (origin_anchor[0].x - origin_anchor[1].x)\
+				  + y * (origin_anchor[2].x - origin_anchor[1].x);
+			p.y = origin_anchor[1].y + x * (origin_anchor[0].y - origin_anchor[1].y)\
+				  + y * (origin_anchor[2].y - origin_anchor[1].y);
+			frame.push_back(p);
+		}
+		frames.push_back(frame);
+	}
+
+	cout << "shit" << endl;
+
+	return frames;
+}
+
+Point Canvas::calc_local_coords(vector<Point> &angle, Point &p)
+{
+	Point coord;
+	
+	// solve equation set
+	Eigen::Matrix3d trans;
+	trans << angle[0].x - angle[1].x, angle[2].x - angle[1].x, angle[1].x,\
+			 angle[0].y - angle[1].y, angle[2].y - angle[1].y, angle[1].y,\
+			 0, 0, 1;
+
+	Eigen::Vector3d after;
+	after << p.x, p.y, 1;
+
+	Eigen::Vector3d before = trans.inverse() * after;
+
+	coord.x = before(0);
+	coord.y = before(1);
+	return coord;
 }

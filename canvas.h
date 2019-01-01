@@ -1,5 +1,6 @@
 #include <QWidget>
 #include <map>
+#include <iostream>
 #include <Eigen/Dense>
 
 using namespace std;
@@ -19,6 +20,7 @@ public:
 class Canvas: public QWidget
 {
 	Q_OBJECT
+	Q_PROPERTY(int value READ value WRITE set_value)
 	private:
 		vector<Point> poly1;
 		vector<Point> poly2;
@@ -36,6 +38,12 @@ class Canvas: public QWidget
 		vector<int> anchor_points;
 		// show anchor
 		bool show_anchor_points;
+		
+		// transition frames
+		vector< vector<Point> > trans_frames;
+		// play
+		bool play_status;
+		size_t pos;
 
 	public:
 		// contrustor
@@ -49,18 +57,29 @@ class Canvas: public QWidget
 					sim[i][j] = 0;
 				}
 			}
+			
 			min_dist = 10000;
 			mapping.clear();
 			show_mapping = false;
+		
 			anchor_points.clear();
 			show_anchor_points = false;
+
+			trans_frames.clear();
+			play_status = false;
+			pos = 0;
 		}
+
+		int value() { return pos; }
+		void set_value(const int value) { pos = value; std::cout << pos << std::endl; }
 
 		void clear();
 
 		void draw_done();
 
 		void play();
+
+		bool get_play_status() { return play_status; }
 
 		void show_map();
 
@@ -89,9 +108,7 @@ class Canvas: public QWidget
 		double calc_area(vector<Point> &poly);
 
 		// get 3 pair of angles with biggest smooth value
-		// then calculate matrix A, B, C
-		void calc_best_affine_trans(Eigen::Matrix2d &, Eigen::Matrix2d &,
-				Eigen::Matrix2d &, Eigen::Vector2d &);
+		void calc_best_affine_trans();
 
 		// calculate affine transform matrix
 		void calc_affine_mat(vector<Point> &, vector<Point> &, Eigen::Matrix2d &,\
@@ -104,7 +121,9 @@ class Canvas: public QWidget
 		// show anchor points
 		void show_anchor();
 		// interpolation
-		void interpolation();
+		vector< vector<Point> > interpolation();
+		// calculate point coordinates in local coordinate system
+		Point calc_local_coords(vector<Point> &, Point &);
 
 	protected:
 		void paintEvent(QPaintEvent *);

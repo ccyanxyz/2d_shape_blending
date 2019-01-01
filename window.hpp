@@ -86,6 +86,11 @@ class Window: public QWidget
 		// start to move the car when play button is clicked
 		void play()
 		{
+			if(canvas->get_play_status()) {
+				play_button->setText("Reset");
+			} else {
+				play_button->setText("Play");
+			}
 			canvas->play();
 		}
 		
