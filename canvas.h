@@ -20,7 +20,6 @@ public:
 class Canvas: public QWidget
 {
 	Q_OBJECT
-	Q_PROPERTY(int value READ value WRITE set_value)
 	private:
 		vector<Point> poly1;
 		vector<Point> poly2;
@@ -69,9 +68,6 @@ class Canvas: public QWidget
 			play_status = false;
 			pos = 0;
 		}
-
-		int value() { return pos; }
-		void set_value(const int value) { pos = value; std::cout << pos << std::endl; }
 
 		void clear();
 

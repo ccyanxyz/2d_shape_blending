@@ -415,8 +415,8 @@ double Canvas::calc_angle_smooth(int i)
 	// calculate S
 	double w1 = 0.5, w2 = 0.5;
 	double S = w1 * (1 - (abs(e11 - e21) + abs(e12 - e22) + \
-					abs(e13 - e23)) / (e11 + e21 + e12 + e22 + e13 + e23))\
-					+ w2 * (1 - (abs(a11 - a21) + abs(a12 - a22) + abs(a13 - a23)) / 180);
+				abs(e13 - e23)) / (e11 + e21 + e12 + e22 + e13 + e23))\
+				+ w2 * (1 - (abs(a11 - a21) + abs(a12 - a22) + abs(a13 - a23)) / 180);
 	
 	// calculate R
 	Eigen::Matrix2d A;
@@ -435,7 +435,7 @@ double Canvas::calc_angle_smooth(int i)
 
 	smooth = a * S + b * (1 - R / 180) + c * _A;
 
-	cout << "S:" << S << ", R:" << R << ", A" << _A << endl;
+	cout << "S:" << S << ", R:" << R << ", A:" << _A << endl;
 
 	if(a11 > 180 || a21 > 180) {
 		smooth = 0;
@@ -447,9 +447,10 @@ double Canvas::calc_area(vector<Point> &poly)
 {
 	double area = 0;
 	for(size_t i = 0; i < poly.size() - 1; ++i) {
-		area += 0.5 * fabs(poly[i].x * poly[i + 1].y - poly[i + 1].x * poly[i].y);
+		area += 0.5 * (poly[i].x * poly[i + 1].y - poly[i + 1].x * poly[i].y);
 	}
-	return area;
+	//cout << "area:" << fabs(area) << endl;
+	return fabs(area);
 }
 
 double Canvas::calc_smooth(int a, int b, int c)
@@ -610,22 +611,37 @@ vector< vector<Point> > Canvas::interpolation()
 		dest_local.push_back(calc_local_coords(dest_anchor, poly2[i.second]));
 	}
 
-	for(double t = 0; t <= 1; t += 0.05) {
+	for(double t = 0; t <= 1; t += 0.01) {
 		vector<Point> frame;
 		for(size_t i = 0; i < origin_local.size(); ++i) {
 			Point p;
 			double x = (1 - t) * origin_local[i].x + t * dest_local[i].x;
 			double y = (1 - t) * origin_local[i].y + t * dest_local[i].y;
-			p.x = origin_anchor[1].x + x * (origin_anchor[0].x - origin_anchor[1].x)\
-				  + y * (origin_anchor[2].x - origin_anchor[1].x);
-			p.y = origin_anchor[1].y + x * (origin_anchor[0].y - origin_anchor[1].y)\
-				  + y * (origin_anchor[2].y - origin_anchor[1].y);
+			
+			vector<Point> anchor;
+			for(size_t i = 0; i < 3; ++i) {
+				Point point;
+				point.x = (1 - t) * origin_anchor[i].x + t * dest_anchor[i].x;
+				point.y = (1 - t) * origin_anchor[i].y + t * dest_anchor[i].y;
+				anchor.push_back(point);
+			}
+
+			//p.x = origin_anchor[1].x + x * (origin_anchor[0].x - origin_anchor[1].x)\
+				  //+ y * (origin_anchor[2].x - origin_anchor[1].x);
+			//p.y = origin_anchor[1].y + x * (origin_anchor[0].y - origin_anchor[1].y)\
+				  //+ y * (origin_anchor[2].y - origin_anchor[1].y);
+			
+			p.x = anchor[1].x + x * (anchor[0].x - anchor[1].x) + \
+				  y * (anchor[2].x - anchor[1].x);
+			p.y = anchor[1].y + x * (anchor[0].y - anchor[1].y) + \
+				  y * (anchor[2].y - anchor[1].y);
 			frame.push_back(p);
+			cout << "x:" << x << ", y:" << y << " ";
+			cout << "(" << p.x << ", " << p.y << ") ";
 		}
+		cout << endl;
 		frames.push_back(frame);
 	}
-
-	cout << "shit" << endl;
 
 	return frames;
 }
