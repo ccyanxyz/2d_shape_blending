@@ -244,16 +244,25 @@ void Canvas::calc_points_map()
 	calc_mapping(poly2, mapping1, min_dist1, sim1);
 	calc_mapping(reverse_poly2, mapping2, min_dist2, sim2);
 
-	cout << min_dist1 << ", mapping1.size():" << mapping1.size() << endl;
-	cout << min_dist2 << ", mapping2.size():" << mapping2.size() << endl;
+	cout << min_dist1 << ", mapping1.size():" << mapping1.size() << ", ";
+	for(auto i : mapping1) {
+		cout << i.first << "->" << i.second << " ";
+	}
+	cout << endl;
+
+	cout << min_dist2 << ", mapping2.size():" << mapping2.size() << ", ";
+	for(auto i : mapping2) {
+		cout << i.first << "->" << i.second << " ";
+	}
+	cout << endl;
+
+
 
 	if(min_dist1 < min_dist2) {
 		min_dist = min_dist1;
 		mapping.insert(mapping1.begin(), mapping1.end());
 	} else {
 		min_dist = min_dist2;
-		//mapping.insert(mapping2.begin(), mapping2.end());
-		//reverse(poly2.begin(), poly2.end());
 		for(auto i : mapping2) {
 			mapping[i.first] = poly2.size() - 1 - i.second;
 		}
@@ -296,7 +305,6 @@ void Canvas::calc_mapping(vector<Point> &poly, map<int, int> &_map,\
 				pair<int, int> p;
 				p.first = path[j].second;
 				p.second = (poly.size() + path[j].first - i) % poly.size();
-				//mapping.push_back(p);
 				_map[p.first] = p.second;
 			}
 			mdist = dist;
@@ -457,9 +465,10 @@ double Canvas::calc_angle_smooth(int i)
 	double angle_area2 = calc_area(angle2);
 	double poly_area1 = calc_area(poly1);
 	double poly_area2 = calc_area(poly2);
-	double _A = (angle_area1 + angle_area2) / (poly_area1 + poly_area2);
+	double _a = (angle_area1 + angle_area2) / (poly_area1 + poly_area2);
+	cout << "A:" << _a << endl;
 
-	smooth = a * S + b * (1 - R / 180) + c * _A;
+	smooth = a * S + b * (1 - R / 180) + c * _a;
 
 	if(a11 > 180 || a21 > 180) {
 		smooth = 0;
@@ -470,10 +479,10 @@ double Canvas::calc_angle_smooth(int i)
 double Canvas::calc_area(vector<Point> &poly)
 {
 	double area = 0;
-	for(size_t i = 0; i < poly.size() - 1; ++i) {
-		area += 0.5 * (poly[i].x * poly[i + 1].y - poly[i + 1].x * poly[i].y);
+	for(size_t i = 0; i < poly.size(); ++i) {
+		area += 0.5 * (poly[i].x * poly[(i + 1) % poly.size()].y\
+				- poly[(i + 1) % poly.size()].x * poly[i].y);
 	}
-	//cout << "area:" << fabs(area) << endl;
 	return fabs(area);
 }
 
