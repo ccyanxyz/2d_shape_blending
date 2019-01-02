@@ -7,10 +7,10 @@ using namespace std;
 class Point {
 
 public:
-	int x;
-	int y;
+	double x;
+	double y;
 
-	Point(int _x, int _y): x(_x), y(_y) {  }
+	Point(double _x, double _y): x(_x), y(_y) {  }
 	Point() {
 		x = 0;
 		y = 0;
@@ -25,7 +25,8 @@ class Canvas: public QWidget
 		vector<Point> poly2;
 		int num;
 		// similarity matrix
-		double sim[100][100];
+		double sim1[100][100];
+		double sim2[100][100];
 		// shortest path length
 		double min_dist;
 		// shortest path points mapping
@@ -43,6 +44,9 @@ class Canvas: public QWidget
 		// play
 		bool play_status;
 		size_t pos;
+		// affine transform matrix
+		Eigen::Matrix2d _A, _B, _C;
+		Eigen::Vector2d _T;
 
 	public:
 		// contrustor
@@ -53,7 +57,8 @@ class Canvas: public QWidget
 			num = 0;
 			for(int i = 0; i < 100; ++i) {
 				for(int j = 0; j < 100; ++j) {
-					sim[i][j] = 0;
+					sim1[i][j] = 0;
+					sim2[i][j] = 0;
 				}
 			}
 			
@@ -89,6 +94,8 @@ class Canvas: public QWidget
 		void calc_poly_sim();
 		// calculate mapping
 		void calc_points_map();
+		void calc_mapping(vector<Point> &, map<int, int> &, double &,\
+				double sim_mat[100][100]);
 		// calculate shortest path
 		double calc_shortest_path(double mat[100][100], int m, int n,\
 				vector< pair<int, int> > &path);
@@ -118,6 +125,7 @@ class Canvas: public QWidget
 		void show_anchor();
 		// interpolation
 		vector< vector<Point> > interpolation();
+		vector<Point> interpolate_anchor(vector<Point> &, double);
 		// calculate point coordinates in local coordinate system
 		Point calc_local_coords(vector<Point> &, Point &);
 

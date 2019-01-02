@@ -29,7 +29,8 @@ void Canvas::clear()
 	num = 0;
 	for(int i = 0; i < 100; ++i) {
 		for(int j = 0; j < 100; ++j) {
-			sim[i][j] = 0;
+			sim1[i][j] = 0;
+			sim2[i][j] = 0;
 		}
 	}
 	min_dist = 10000;
@@ -50,6 +51,7 @@ void Canvas::draw_done()
 		if(num == 2) {
 			calc_poly_sim();
 			calc_points_map();
+			calc_best_affine_trans();
 			//cout << mapping.size() << ", " << poly1.size() << endl;
 		}
 		update();
@@ -89,7 +91,6 @@ void Canvas::paintEvent(QPaintEvent *)
 		if(i != poly1.size() - 1) {
 			p.drawLine(poly1[i].x, poly1[i].y, poly1[i + 1].x, poly1[i + 1].y);
 		}
-		cout << "shit" << endl;
 	}
 
 	for(size_t i = 0; i < poly2.size(); ++i) {
@@ -126,9 +127,8 @@ void Canvas::paintEvent(QPaintEvent *)
 		}
 	}
 
-	cout << "play_status:" << play_status << ", pos:" << pos << endl;
+	//cout << "play_status:" << play_status << ", pos:" << pos << endl;
 	if(play_status && trans_frames.size() > 0) {
-		//for(auto frame : trans_frames) {
 		if(pos >= trans_frames.size()) {
 			play_status = false;
 			pos = 0;
@@ -139,10 +139,9 @@ void Canvas::paintEvent(QPaintEvent *)
 						frame[(i + 1) % frame.size()].y);
 			}
 			pos += 1;
-			this_thread::sleep_for(chrono::milliseconds(100));
+			this_thread::sleep_for(chrono::milliseconds(25));
 			update();
 		}
-		//}
 	}
 }
 
@@ -214,55 +213,93 @@ void Canvas::calc_poly_sim()
 	// size of polygon1 should >= size of polygon2
 	assert(poly1.size() >= poly2.size());
 
-	// calculate similarity matrix
+	// calculate similarity matrix1
 	for(size_t i = 0; i < poly2.size(); ++i) {
 		for(size_t j = 0; j < poly1.size(); ++j) {
-			sim[i][j] = calc_angle_sim(j, i);
+			sim1[i][j] = calc_angle_sim(j, i);
 		}
 	}
 
-	//cout << "sim:" << endl;
-	//print_mat(sim, poly2.size(), poly1.size());
+	// reverse poly2
+	reverse(poly2.begin(), poly2.end());
+	// calculate similarity matrix1
+	for(size_t i = 0; i < poly2.size(); ++i) {
+		for(size_t j = 0; j < poly1.size(); ++j) {
+			sim2[i][j] = calc_angle_sim(j, i);
+		}
+	}
+
+	// reverse poly2 back
+	reverse(poly2.begin(), poly2.end());
 }
 
 void Canvas::calc_points_map()
 {
 	mapping.clear();
-	for(size_t i = 0; i < poly2.size(); ++i) {
+	map<int, int> mapping1, mapping2;
+	double min_dist1 = 10000, min_dist2 = 10000;
+	vector<Point> reverse_poly2(poly2.begin(), poly2.end());
+	reverse(reverse_poly2.begin(), reverse_poly2.end());
+	
+	calc_mapping(poly2, mapping1, min_dist1, sim1);
+	calc_mapping(reverse_poly2, mapping2, min_dist2, sim2);
+
+	cout << min_dist1 << ", mapping1.size():" << mapping1.size() << endl;
+	cout << min_dist2 << ", mapping2.size():" << mapping2.size() << endl;
+
+	if(min_dist1 < min_dist2) {
+		min_dist = min_dist1;
+		mapping.insert(mapping1.begin(), mapping1.end());
+	} else {
+		min_dist = min_dist2;
+		//mapping.insert(mapping2.begin(), mapping2.end());
+		//reverse(poly2.begin(), poly2.end());
+		for(auto i : mapping2) {
+			mapping[i.first] = poly2.size() - 1 - i.second;
+		}
+	}
+	cout << "mapping:" << endl;
+	for(auto i : mapping) {
+		cout << i.first << "->" << i.second << " ";
+	}
+	cout << endl;
+}
+
+void Canvas::calc_mapping(vector<Point> &poly, map<int, int> &_map,\
+		double &mdist, double sim_mat[100][100])
+{
+	for(size_t i = 0; i < poly.size(); ++i) {
 		// construct cograph of similarity matrix
 		double co_sim_i[100][100];
-		for(size_t m = 0; m < poly2.size(); ++m) {
+		for(size_t m = 0; m < poly.size(); ++m) {
 			for(size_t n = 0; n < poly1.size(); ++n) {
-				co_sim_i[m][n] = 1 - sim[(m + i) % poly2.size()][n];
+				co_sim_i[m][n] = 1 - sim_mat[(m + i) % poly.size()][n];
 			}
 		}
 		for(size_t i = 0; i < poly1.size(); ++i) {
-			co_sim_i[poly2.size()][i] = co_sim_i[0][i];
+			co_sim_i[poly.size()][i] = co_sim_i[0][i];
 		}
-		for(size_t i = 0; i < poly2.size(); ++i) {
+		for(size_t i = 0; i < poly.size(); ++i) {
 			co_sim_i[i][poly1.size()] = co_sim_i[i][0];
 		}
-		co_sim_i[poly2.size()][poly1.size()] = co_sim_i[0][0];
-
-		//cout << "co_sim:" << endl;
-		//print_mat(co_sim_i, poly2.size() + 1, poly1.size() + 1);
+		co_sim_i[poly.size()][poly1.size()] = co_sim_i[0][0];
 
 		// calculate shortest path
 		vector< pair<int, int> > path;
-		double dist = calc_shortest_path(co_sim_i, poly2.size() + 1,\
+		double dist = calc_shortest_path(co_sim_i, poly.size() + 1,\
 				poly1.size() + 1, path);
 		
 		// if dist < min_dist, update mapping
-		if(dist < min_dist) {
-			mapping.clear();
+		if(dist < mdist) {
+			_map.clear();
 			for(size_t j = 0; j < path.size(); ++j) {
 				pair<int, int> p;
 				p.first = path[j].second;
-				p.second = (poly2.size() + path[j].first - i) % poly2.size();
+				p.second = (poly.size() + path[j].first - i) % poly.size();
 				//mapping.push_back(p);
-				mapping[p.first] = p.second;
+				_map[p.first] = p.second;
 			}
-			min_dist = dist;
+			mdist = dist;
 		}
 	}
 }
@@ -307,20 +344,6 @@ double Canvas::calc_shortest_path(double mat[100][100], int m, int n,\
 		}
 	}
 
-	/*
-	cout << "dp:" << endl;
-	print_mat(dp, m, n);
-
-	cout << "prev:" << endl;
-	for(int i = 0; i < m; ++i) {
-		for(int j = 0; j < n; ++j) {
-			cout << "(" << prev[i][j].first << ", " << prev[i][j].second << ") ";
-		}
-		cout << endl;
-	}
-	cout << endl;
-	*/
-
 	// get path
 	path.clear();
 	pair<int, int> p = prev[m - 1][n - 1];
@@ -332,13 +355,6 @@ double Canvas::calc_shortest_path(double mat[100][100], int m, int n,\
 	
 	reverse(path.begin(), path.end());
 
-	/*
-	for(size_t i = 0; i < path.size(); ++i) {
-		cout << "(" << path[i].first << ", " << path[i].second << ") ";
-	}
-	cout << dp[m-1][n-1];
-	cout << endl;
-	*/
 	return dp[m - 1][n - 1];
 }
 
@@ -360,22 +376,32 @@ void Canvas::show_map()
 		if(mapping.size() == 0) {
 			calc_poly_sim();
 			calc_points_map();
+			calc_best_affine_trans();
 		}
 		show_mapping = true;
 	}
-	/*
-	cout << "===== mapping =====" << endl;
-	for(auto it = mapping.begin(); it != mapping.end(); ++it) {
-		cout << it->first << "->" << it->second << endl;
+	update();
+}
+
+void Canvas::show_anchor()
+{
+	if(show_anchor_points == true) {
+		show_anchor_points = false;
+	} else {
+		if(mapping.size() == 0) {
+			calc_poly_sim();
+			calc_points_map();
+		}
+		calc_best_affine_trans();
+		if(anchor_points.size() != 0) {
+			show_anchor_points = true;
+		}
 	}
-	cout << "===================" << endl;
-	*/
 	update();
 }
 
 double Canvas::calc_angle_smooth(int i)
 {
-	//cout << "mapping:" << mapping.size() << ", poly1:" << poly1.size() << endl; 
 	assert(mapping.size() == poly1.size());
 	
 	int j = mapping[i];
@@ -435,8 +461,6 @@ double Canvas::calc_angle_smooth(int i)
 
 	smooth = a * S + b * (1 - R / 180) + c * _A;
 
-	cout << "S:" << S << ", R:" << R << ", A:" << _A << endl;
-
 	if(a11 > 180 || a21 > 180) {
 		smooth = 0;
 	}
@@ -471,7 +495,6 @@ void Canvas::calc_best_affine_trans()
 	perm.push_back(1);
 
 	double max_smooth = 0;
-	//vector<int> anchor_points;
 
 	bool flag = true;
 	while(flag) {
@@ -484,14 +507,6 @@ void Canvas::calc_best_affine_trans()
 
 		flag = next_permutation(perm.begin(), perm.end());
 
-		/*
-		cout << "points:";
-		for(auto i : points) {
-			cout << i << " ";
-		}
-		cout << endl;
-		*/
-
 		// check if 2 points mapping to the same point in polygon2
 		if(mapping[points[0]] == mapping[points[1]] ||\
 				mapping[points[0]] == mapping[points[2]] ||\
@@ -503,10 +518,12 @@ void Canvas::calc_best_affine_trans()
 		if(smooth > max_smooth) {
 			anchor_points.clear();
 			anchor_points.assign(points.begin(), points.end());
+			/*
 			for(auto i : anchor_points) {
 				cout << i << " ";
 			}
 			cout << endl;
+			*/
 			max_smooth = smooth;
 		}
 	}
@@ -518,19 +535,8 @@ void Canvas::calc_best_affine_trans()
 		angle2.push_back(poly2[mapping[i]]);
 	}
 
-	/*
-	cout << "angle1:" << endl;
-	for(auto i : angle1) {
-		cout << "(" << i.x << ", " << i.y << ") ";
-	}
-	cout << endl;
-	
-	cout << "angle2:" << endl;
-	for(auto i : angle2) {
-		cout << "(" << i.x << ", " << i.y << ") ";
-	}
-	cout << endl;
-	*/
+	calc_affine_mat(angle1, angle2, _A, _T);
+	decompose_affine_mat(_A, _B, _C);
 }
 
 void Canvas::calc_affine_mat(vector<Point> &angle1, vector<Point> &angle2,\
@@ -576,22 +582,9 @@ void Canvas::decompose_affine_mat(Eigen::Matrix2d &A, Eigen::Matrix2d &B,\
 
 	B = A + sign_det_A * temp;
 	C = B.inverse() * A;
-	double t = B(0, 0) * B(0, 0) + B(0, 1) + B(0, 1);
+	double t = sqrt(B(0, 0) * B(0, 0) + B(0, 1) * B(0, 1));
 	B /= t;
 	C *= t;
-}
-
-void Canvas::show_anchor()
-{
-	if(show_anchor_points == true) {
-		show_anchor_points = false;
-	} else {
-		calc_best_affine_trans();
-		if(anchor_points.size() != 0) {
-			show_anchor_points = true;
-		}
-	}
-	update();
 }
 
 vector< vector<Point> > Canvas::interpolation()
@@ -611,6 +604,11 @@ vector< vector<Point> > Canvas::interpolation()
 		dest_local.push_back(calc_local_coords(dest_anchor, poly2[i.second]));
 	}
 
+	for(size_t i = 0; i < origin_local.size(); ++i) {
+		cout << origin_local[i].x << ", " << origin_local[i].y << " ";
+	}
+	cout << endl;
+
 	for(double t = 0; t <= 1; t += 0.01) {
 		vector<Point> frame;
 		for(size_t i = 0; i < origin_local.size(); ++i) {
@@ -618,32 +616,47 @@ vector< vector<Point> > Canvas::interpolation()
 			double x = (1 - t) * origin_local[i].x + t * dest_local[i].x;
 			double y = (1 - t) * origin_local[i].y + t * dest_local[i].y;
 			
-			vector<Point> anchor;
-			for(size_t i = 0; i < 3; ++i) {
-				Point point;
-				point.x = (1 - t) * origin_anchor[i].x + t * dest_anchor[i].x;
-				point.y = (1 - t) * origin_anchor[i].y + t * dest_anchor[i].y;
-				anchor.push_back(point);
-			}
-
-			//p.x = origin_anchor[1].x + x * (origin_anchor[0].x - origin_anchor[1].x)\
-				  //+ y * (origin_anchor[2].x - origin_anchor[1].x);
-			//p.y = origin_anchor[1].y + x * (origin_anchor[0].y - origin_anchor[1].y)\
-				  //+ y * (origin_anchor[2].y - origin_anchor[1].y);
-			
+			vector<Point> anchor = interpolate_anchor(origin_anchor, t);
 			p.x = anchor[1].x + x * (anchor[0].x - anchor[1].x) + \
 				  y * (anchor[2].x - anchor[1].x);
 			p.y = anchor[1].y + x * (anchor[0].y - anchor[1].y) + \
 				  y * (anchor[2].y - anchor[1].y);
 			frame.push_back(p);
-			cout << "x:" << x << ", y:" << y << " ";
-			cout << "(" << p.x << ", " << p.y << ") ";
 		}
-		cout << endl;
 		frames.push_back(frame);
 	}
 
 	return frames;
+}
+
+vector<Point> Canvas::interpolate_anchor(vector<Point> &origin_anchor, double t)
+{
+	Eigen::Matrix2d temp;
+	temp << 1, 0,\
+			0, 1;
+
+	Eigen::Matrix2d rotate;
+	rotate << cos(t * acos(_B(0, 0))), -sin(t * asin(-_B(0, 1))),\
+		 sin(t * asin(_B(1, 0))), cos(t * acos(_B(1, 1)));
+
+	Eigen::Matrix2d scale;
+	scale << t * _C(0, 0), t * _C(0, 1),\
+			 t * _C(1, 0), t * _C(1, 1);
+	
+	Eigen::Vector2d trans;
+	trans << t * _T(0), t * _T(1);
+
+	Eigen::Matrix2d a = (1 - t) * temp + rotate * scale;
+
+	vector<Point> anchor;
+	for(size_t i = 0; i < origin_anchor.size(); ++i) {
+		Eigen::Vector2d coord1;
+		coord1 << origin_anchor[i].x, origin_anchor[i].y;
+		Eigen::Vector2d p = coord1.transpose() * a + trans.transpose();
+		anchor.push_back(Point(p(0), p(1)));
+	}
+
+	return anchor;
 }
 
 Point Canvas::calc_local_coords(vector<Point> &angle, Point &p)
@@ -660,8 +673,8 @@ Point Canvas::calc_local_coords(vector<Point> &angle, Point &p)
 	after << p.x, p.y, 1;
 
 	Eigen::Vector3d before = trans.inverse() * after;
-
 	coord.x = before(0);
 	coord.y = before(1);
+
 	return coord;
 }
