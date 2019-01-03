@@ -3,6 +3,7 @@ lab3
 a.out*
 *.o
 *.swp
+.qmake*
 moc_canvas.cpp
 moc_window.cpp
 moc_predefs.h

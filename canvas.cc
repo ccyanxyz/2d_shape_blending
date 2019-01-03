@@ -29,8 +29,7 @@ void Canvas::clear()
 	num = 0;
 	for(int i = 0; i < 100; ++i) {
 		for(int j = 0; j < 100; ++j) {
-			sim1[i][j] = 0;
-			sim2[i][j] = 0;
+			sim[i][j] = 0;
 		}
 	}
 	min_dist = 10000;
@@ -52,7 +51,6 @@ void Canvas::draw_done()
 			calc_poly_sim();
 			calc_points_map();
 			calc_best_affine_trans();
-			//cout << mapping.size() << ", " << poly1.size() << endl;
 		}
 		update();
 	}
@@ -127,7 +125,6 @@ void Canvas::paintEvent(QPaintEvent *)
 		}
 	}
 
-	//cout << "play_status:" << play_status << ", pos:" << pos << endl;
 	if(play_status && trans_frames.size() > 0) {
 		if(pos >= trans_frames.size()) {
 			play_status = false;
@@ -216,62 +213,23 @@ void Canvas::calc_poly_sim()
 	// calculate similarity matrix1
 	for(size_t i = 0; i < poly2.size(); ++i) {
 		for(size_t j = 0; j < poly1.size(); ++j) {
-			sim1[i][j] = calc_angle_sim(j, i);
+			sim[i][j] = calc_angle_sim(j, i);
 		}
 	}
-
-	// reverse poly2
-	reverse(poly2.begin(), poly2.end());
-	// calculate similarity matrix1
-	for(size_t i = 0; i < poly2.size(); ++i) {
-		for(size_t j = 0; j < poly1.size(); ++j) {
-			sim2[i][j] = calc_angle_sim(j, i);
-		}
-	}
-
-	// reverse poly2 back
-	reverse(poly2.begin(), poly2.end());
 }
 
 void Canvas::calc_points_map()
 {
 	mapping.clear();
-	map<int, int> mapping1, mapping2;
-	double min_dist1 = 10000, min_dist2 = 10000;
-	vector<Point> reverse_poly2(poly2.begin(), poly2.end());
-	reverse(reverse_poly2.begin(), reverse_poly2.end());
+	map<int, int> mapping1;
+	double min_dist1 = 10000;
 	
-	calc_mapping(poly2, mapping1, min_dist1, sim1);
-	calc_mapping(reverse_poly2, mapping2, min_dist2, sim2);
+	calc_mapping(poly2, mapping1, min_dist1, sim);
 
-	cout << min_dist1 << ", mapping1.size():" << mapping1.size() << ", ";
-	for(auto i : mapping1) {
-		cout << i.first << "->" << i.second << " ";
-	}
-	cout << endl;
-
-	cout << min_dist2 << ", mapping2.size():" << mapping2.size() << ", ";
-	for(auto i : mapping2) {
-		cout << i.first << "->" << i.second << " ";
-	}
-	cout << endl;
-
-
-
-	if(min_dist1 < min_dist2) {
+	if(min_dist1 < min_dist) {
 		min_dist = min_dist1;
 		mapping.insert(mapping1.begin(), mapping1.end());
-	} else {
-		min_dist = min_dist2;
-		for(auto i : mapping2) {
-			mapping[i.first] = poly2.size() - 1 - i.second;
-		}
 	}
-	cout << "mapping:" << endl;
-	for(auto i : mapping) {
-		cout << i.first << "->" << i.second << " ";
-	}
-	cout << endl;
 }
 
 void Canvas::calc_mapping(vector<Point> &poly, map<int, int> &_map,\
@@ -466,7 +424,6 @@ double Canvas::calc_angle_smooth(int i)
 	double poly_area1 = calc_area(poly1);
 	double poly_area2 = calc_area(poly2);
 	double _a = (angle_area1 + angle_area2) / (poly_area1 + poly_area2);
-	cout << "A:" << _a << endl;
 
 	smooth = a * S + b * (1 - R / 180) + c * _a;
 
@@ -527,12 +484,6 @@ void Canvas::calc_best_affine_trans()
 		if(smooth > max_smooth) {
 			anchor_points.clear();
 			anchor_points.assign(points.begin(), points.end());
-			/*
-			for(auto i : anchor_points) {
-				cout << i << " ";
-			}
-			cout << endl;
-			*/
 			max_smooth = smooth;
 		}
 	}
@@ -612,11 +563,6 @@ vector< vector<Point> > Canvas::interpolation()
 		origin_local.push_back(calc_local_coords(origin_anchor, poly1[i.first]));
 		dest_local.push_back(calc_local_coords(dest_anchor, poly2[i.second]));
 	}
-
-	for(size_t i = 0; i < origin_local.size(); ++i) {
-		cout << origin_local[i].x << ", " << origin_local[i].y << " ";
-	}
-	cout << endl;
 
 	for(double t = 0; t <= 1; t += 0.01) {
 		vector<Point> frame;

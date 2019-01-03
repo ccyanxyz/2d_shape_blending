@@ -25,8 +25,7 @@ class Canvas: public QWidget
 		vector<Point> poly2;
 		int num;
 		// similarity matrix
-		double sim1[100][100];
-		double sim2[100][100];
+		double sim[100][100];
 		// shortest path length
 		double min_dist;
 		// shortest path points mapping
@@ -57,8 +56,7 @@ class Canvas: public QWidget
 			num = 0;
 			for(int i = 0; i < 100; ++i) {
 				for(int j = 0; j < 100; ++j) {
-					sim1[i][j] = 0;
-					sim2[i][j] = 0;
+					sim[i][j] = 0;
 				}
 			}
 			
