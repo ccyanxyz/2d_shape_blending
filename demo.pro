@@ -4,8 +4,7 @@
 
 QT+=widgets
 TEMPLATE = app
-CONFIG += console
-TARGET = lab3
+TARGET = demo
 DEST = .
 INCLUDEPATH += . /usr/local/Cellar/eigen/3.3.5/include/eigen3
 
