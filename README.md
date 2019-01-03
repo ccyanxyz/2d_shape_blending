@@ -21,19 +21,19 @@ Implementation of paper:  [A Fuzzy Approach to Digital Image Warping](https://ie
     qmake -project QT+=widgets
     ```
 
-	3. Edit .pro file, add the header files location of Eigen to INCLUDEPATH, use *brew info eigen* to see where eigen is. Note: there is a space between '.' and eigen header files' path:
+ 3. Edit .pro file, add the header files location of Eigen to INCLUDEPATH, use *brew info eigen* to see where eigen is. Note: there is a space between '.' and eigen header files' path:
 
     ```
     INCLUDEPATH += . /usr/local/Cellar/eigen/3.3.5/include/eigen3
     ```
 
-	4. Generate makefile:
+ 4. Generate makefile:
 
     ```
     qmake
     ```
 
-	5. Compile:
+ 5. Compile:
 
     ```
     make
