@@ -218,7 +218,6 @@ DIST          = /usr/local/Cellar/qt/5.11.2/mkspecs/features/spec_pre.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/qt_config.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/macx-clang/qmake.conf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/spec_post.prf \
-		.qmake.stash \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/exclusive_builds.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/mac/sdk.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/toolchain.prf \
@@ -250,7 +249,7 @@ DIST          = /usr/local/Cellar/qt/5.11.2/mkspecs/features/spec_pre.prf \
 		main.cc
 QMAKE_TARGET  = lab3
 DESTDIR       = 
-TARGET        = lab3
+TARGET        = lab3.app/Contents/MacOS/lab3
 
 ####### Custom Variables
 EXPORT_QMAKE_MAC_SDK = macosx
@@ -429,7 +428,6 @@ Makefile: lab3.pro /usr/local/Cellar/qt/5.11.2/mkspecs/macx-clang/qmake.conf /us
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/qt_config.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/macx-clang/qmake.conf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/spec_post.prf \
-		.qmake.stash \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/exclusive_builds.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/mac/sdk.prf \
 		/usr/local/Cellar/qt/5.11.2/mkspecs/features/toolchain.prf \
@@ -622,7 +620,6 @@ Makefile: lab3.pro /usr/local/Cellar/qt/5.11.2/mkspecs/macx-clang/qmake.conf /us
 /usr/local/Cellar/qt/5.11.2/mkspecs/features/qt_config.prf:
 /usr/local/Cellar/qt/5.11.2/mkspecs/macx-clang/qmake.conf:
 /usr/local/Cellar/qt/5.11.2/mkspecs/features/spec_post.prf:
-.qmake.stash:
 /usr/local/Cellar/qt/5.11.2/mkspecs/features/exclusive_builds.prf:
 /usr/local/Cellar/qt/5.11.2/mkspecs/features/mac/sdk.prf:
 /usr/local/Cellar/qt/5.11.2/mkspecs/features/toolchain.prf:
@@ -694,7 +691,6 @@ clean: compiler_clean
 
 distclean: clean 
 	-$(DEL_FILE) -r lab3.app
-	-$(DEL_FILE) .qmake.stash
 	-$(DEL_FILE) Makefile
 
 
@@ -1415,6 +1411,8 @@ canvas.o: canvas.cc /usr/local/Cellar/eigen/3.3.5/include/eigen3/Eigen/Dense \
 		/usr/local/Cellar/qt/5.11.2/lib/QtWidgets.framework/Headers/qmessagebox.h \
 		/usr/local/Cellar/qt/5.11.2/lib/QtWidgets.framework/Headers/QLabel \
 		/usr/local/Cellar/qt/5.11.2/lib/QtWidgets.framework/Headers/qlabel.h \
+		/usr/local/Cellar/qt/5.11.2/lib/QtCore.framework/Headers/QPropertyAnimation \
+		/usr/local/Cellar/qt/5.11.2/lib/QtCore.framework/Headers/qpropertyanimation.h \
 		canvas.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o canvas.o canvas.cc
 
