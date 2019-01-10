@@ -50,4 +50,3 @@ Note:
 
 1. Number of source polygon's vertices should >= Number of target polygon's vertices
 2. You may get wrong points mapping if you draw 2 polygons in the opposite direction. e.g. draw the source polygon clockwise and the target polygon anti-clockwise.
-3. The program may crash every now and then.
